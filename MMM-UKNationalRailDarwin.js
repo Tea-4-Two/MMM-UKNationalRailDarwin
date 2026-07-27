@@ -8,7 +8,7 @@
  * usable. See README.md for how to get a Darwin Consumer key.
  */
 
-Module.register("MMM-UKNationalRail", {
+Module.register("MMM-UKNationalRailDarwin", {
 
     // Define module defaults
     defaults: {

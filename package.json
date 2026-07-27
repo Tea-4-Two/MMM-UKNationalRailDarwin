@@ -1,14 +1,14 @@
 {
-  "name": "mmm-uknationalrail",
+  "name": "mmm-uknationalrailDarwin",
   "version": "0.1.0",
   "description": "Realtime info for UK rail stations, via National Rail's Darwin OpenLDBWS feed",
-  "main": "MMM-UKNationalRail.js",
+  "main": "MMM-UKNationalRailDarwin.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/nwootton/MMM-UKNationalRail.git"
+    "url": "git+https://github.com/nwootton/MMM-UKNationalRailDarwin.git"
   },
   "keywords": [
     "Magic",
@@ -18,9 +18,9 @@
   "author": "NJW",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/nwootton/MMM-UKNationalRail/issues"
+    "url": "https://github.com/nwootton/MMM-UKNationalRailDarwin/issues"
   },
-  "homepage": "https://github.com/nwootton/MMM-UKNationalRail#readme",
+  "homepage": "https://github.com/nwootton/MMM-UKNationalRailDarwin#readme",
   "dependencies": {
     "xml2js": "^0.6.2"
   }

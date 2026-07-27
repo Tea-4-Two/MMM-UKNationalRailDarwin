@@ -1,11 +1,9 @@
 *Please Note I am a student I will try to keep this updated to the best of my abilty.Any issues can be opened on Github :)*
 
-
-# MMM-UKNationalRail
 Additional Module for MagicMirror²  https://github.com/MichMich/MagicMirror
 
 
-# Module: UKNationalRail
+# Module: UKNationalRailDarwin
 This module displays LIVE train departures from the specified station(s), using National Rail's **Darwin** real-time data feed (via the OpenLDBWS SOAP service).
 
 > **Note:** this module previously used TransportAPI, which is no longer usable. It now talks directly to Darwin/OpenLDBWS instead.
@@ -15,7 +13,7 @@ This module displays LIVE train departures from the specified station(s), using 
 Git clone from this repository into the modules sub-directory of the Magic Mirror installation, change directory into the newly cloned code and then run npm install.
 
 ```bash
-git clone https://github.com/nwootton/MMM-UKNationalRail.git
+git clone https://github.com/nwootton/MMM-UKNationalRailDarwin.git
 cd MMM-UKNationalRail
 npm install
 ```
@@ -24,7 +22,7 @@ To use this module, add it to the modules array in the `config/config.js` file:
 ```javascript
 modules: [
     {
-		module: 		'MMM-UKNationalRail',
+		module: 		'MMM-UKNationalRailDarwin',
 		position: 		'bottom_left',
 		header:			'Departures',		//Optional - delete this line to turn OFF the header completely
 		config: {
@@ -80,8 +78,9 @@ To find the CRS Station codes for the 'stations of interest' go here: http://www
 If there are issues getting data out of the module, check the following:
 
 1. Do you have an account set up at raildata.org.uk?
-2. Are you subscribed to the "Live Departure Board Web Service (LDBWS) - Public" product?
+2. Are you subscribed to the "Live Departure Board" product?
 3. Have you copied the Consumer key from that subscription's Specification tab into `accessToken`?
 4. Do you know the CRS code for the station?
 5. Set `debug: true` in your config - the module will log the raw SOAP request/response to the console, which usually makes auth vs. data-shape problems obvious.
 6. A 401/403 from Darwin almost always means the Consumer key is missing, wrong, or the subscription hasn't been approved yet.
+7. Check your subsciption has been renewed
