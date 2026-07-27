@@ -3,6 +3,7 @@
   "version": "0.2.0",
   "description": "Realtime info for UK rail stations, via National Rail's Darwin data on the Rail Data Marketplace",
   "main": "MMM-UKNationalRailDarwin.js",
+  
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -15,7 +16,7 @@
     "Mirror",
     "Module"
   ],
-  "author": "NJW",
+  "author": "Tea-4-Two",
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/Tea-4-Two/MMM-UKNationalRailDarwin/issues"
