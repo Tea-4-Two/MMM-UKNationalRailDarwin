@@ -45,13 +45,16 @@ Add a config for each station you require info on.
 Darwin used to be self-service via `realtime.nationalrail.co.uk`, but that portal (along with the older National Rail Data Portal) was retired in early 2026. Access is now issued through the **Rail Data Marketplace (RDM)**:
 
 1. Create an account and sign in at [raildata.org.uk](https://raildata.org.uk/).
-2. Open the Data Product Catalogue and search for **LDBWS**.
-3. Subscribe to **"Live Departure Board Web Service (LDBWS) - Public"** and accept the licence - the free, open tier is approved instantly.
+2. Open the Data Product Catalogue and search for **LDB**.
+3. Subscribe to **"Live Departure Board"** and accept the licence - the free, open tier is approved instantly.
    - Don't pick "Live Fastest Departure Boards" or the Staff version - this module talks to the classic public GetDepBoardWithDetails SOAP service.
-4. Go to **My Subscriptions**, open the subscribed product, and on the **Specification** tab copy the **Consumer key**.
+4. Go to **My Subscriptions**, open the subscribed product(click the name of it), and on the **Specification** tab copy the **Consumer key**.
+	Possible reasons this doesnt work:
+	There may be an email confirmation
+	If you see a loading icon after clicking into the product the key is still generating make sure the above ^ is completed and check again in a couple minutes 
 5. Paste that value into `accessToken` in your config.
 
-If you already have an old, still-valid OpenLDBWS token from the previous registration system, that will continue to work in the `accessToken` field too.
+If you already have an old, still-valid OpenLDBWS token from the previous registration system, that will continue to work in the `accessToken` field too.(maybe i haven't checked....)
 
 The free tier allows 100,000 calls/month, which is far more than a single MagicMirror install polling every 5 minutes will ever use.
 
