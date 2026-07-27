@@ -1,10 +1,4 @@
-/* Live Station Info */
-
-/* Magic Mirror
- * Module: UK National Rail Info
- * By Nick Wootton
- * MIT Licensed.
- *
+/* Live Station Info 
  * Updated to talk to National Rail's Darwin real-time data feed via the
  * OpenLDBWS SOAP service, since TransportAPI is no longer usable.
  *

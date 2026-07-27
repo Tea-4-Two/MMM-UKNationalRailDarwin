@@ -3,10 +3,6 @@
 /* Magic Mirror
  * Module: UK National Rail
  *
- * By Nick Wootton
- * based on SwissTransport module by Benjamin Angst http://www.beny.ch
- * MIT Licensed.
- *
  * Updated to use National Rail's Darwin real-time feed via OpenLDBWS,
  * since TransportAPI (the module's original data source) is no longer
  * usable. See README.md for how to get a Darwin Consumer key.
