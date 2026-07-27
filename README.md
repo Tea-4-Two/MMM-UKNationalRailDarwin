@@ -14,7 +14,7 @@ Git clone from this repository into the modules sub-directory of the Magic Mirro
 
 ```bash
 git clone https://github.com/nwootton/MMM-UKNationalRailDarwin.git
-cd MMM-UKNationalRail
+cd MMM-UKNationalRailDarwin
 npm install
 ```
 To use this module, add it to the modules array in the `config/config.js` file:
