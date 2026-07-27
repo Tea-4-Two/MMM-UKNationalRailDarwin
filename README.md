@@ -13,7 +13,7 @@ This module displays LIVE train departures from the specified station(s), using 
 Git clone from this repository into the modules sub-directory of the Magic Mirror installation, change directory into the newly cloned code and then run npm install.
 
 ```bash
-git clone https://github.com/nwootton/MMM-UKNationalRailDarwin.git
+git clone https://github.com/Tea-4-Two/MMM-UKNationalRailDarwin.git
 cd MMM-UKNationalRailDarwin
 npm install
 ```
