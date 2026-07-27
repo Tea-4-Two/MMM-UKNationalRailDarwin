@@ -1,11 +1,12 @@
 /* Timetable for Trains Module */
 
 /* Magic Mirror
- * Module: UK National Rail
+ * Module: UK National Rail Darwin
  *
- * Updated to use National Rail's Darwin real-time feed via OpenLDBWS,
- * since TransportAPI (the module's original data source) is no longer
- * usable. See README.md for how to get a Darwin Consumer key.
+ *
+ * Uses National Rail's Darwin data via the LDBWS REST API on the Rail
+ * Data Marketplace (raildata.org.uk). See README.md for how to get a
+ * Consumer key.
  */
 
 Module.register("MMM-UKNationalRailDarwin", {
@@ -18,11 +19,12 @@ Module.register("MMM-UKNationalRailDarwin", {
         fadePoint: 0.25, // Start on 1/4th of the list.
         initialLoadDelay: 0, // start delay seconds.
 
-        // Darwin/OpenLDBWS SOAP endpoint. You shouldn't normally need to change this.
-        soapEndpoint: 'https://lite.realtime.nationalrail.co.uk/OpenLDBWS/ldb11.asmx',
+        // LDBWS REST API base URL (up to and including the operation name).
+        // The module appends /{stationCode} itself.
+        apiBase: 'https://api1.raildata.org.uk/1010-live-departure-board-dep1_2/LDBWS/api/20220120/GetDepartureBoard/',
 
         stationCode: '', // CRS code for the station you want departures from
-        accessToken: '', // Darwin "Consumer key" from the Rail Data Marketplace (raildata.org.uk)
+        accessToken: '', // Consumer key from your Rail Data Marketplace subscription (sent as the x-apikey header)
 
         filterCrs: '', // Optional - CRS code of another station to filter services by
         filterType: 'to', // 'to' or 'from' - only used if filterCrs is set
@@ -80,7 +82,7 @@ Module.register("MMM-UKNationalRailDarwin", {
         if (!this.hidden) {
             this.sendSocketNotification("GET_TRAININFO", {
                 identifier: this.identifier,
-                endpoint: this.config.soapEndpoint,
+                apiBase: this.config.apiBase,
                 accessToken: this.config.accessToken,
                 stationCode: this.config.stationCode,
                 filterCrs: this.config.filterCrs,
@@ -197,10 +199,6 @@ Module.register("MMM-UKNationalRailDarwin", {
                     statusCell.className = "late status";
                 } else if (statusUpper === "DELAYED") {
                     statusCell.className = "late status";
-                } else if (statusUpper === "LATE") {
-                    statusCell.className = "bright late status";
-                } else if (statusUpper === "EARLY") {
-                    statusCell.className = "bright early status";
                 } else if (statusUpper === "NO REPORT") {
                     statusCell.className = "nonews status";
                 } else {
@@ -247,97 +245,68 @@ Module.register("MMM-UKNationalRailDarwin", {
         return wrapper;
     },
 
-    /* firstOf(node, path)
-     * Small helper for safely digging into the deeply-nested, array-heavy
-     * structure that xml2js produces from Darwin's SOAP response.
-     * `path` is an array of keys to walk, taking element [0] at each step.
-     */
-    firstOf: function(node, path) {
-        var current = node;
-        for (var i = 0; i < path.length; i++) {
-            if (current == null) {
-                return null;
-            }
-            current = current[path[i]];
-            if (Array.isArray(current)) {
-                current = current[0];
-            }
-        }
-        return current == null ? null : current;
-    },
-
-    /* processTrains(result)
-     * Uses the parsed Darwin SOAP response (via xml2js, prefixes stripped)
-     * to populate this.trains for getDom() to render.
+    /* processTrains(data)
+     * Uses the JSON response from the LDBWS REST API to populate
+     * this.trains for getDom() to render.
      *
-     * argument result object - Parsed GetDepBoardWithDetailsResponse from Darwin.
+     * argument data object - Parsed GetDepartureBoard JSON response from Darwin.
      */
-    processTrains: function(result) {
+    processTrains: function(data) {
 
         this.trains = {};
         this.trains.data = [];
         this.trains.timestamp = new Date();
         this.trains.message = null;
 
-        var fault = this.firstOf(result, ["Envelope", "Body", "Fault"]);
-        if (fault) {
-            var faultString = this.firstOf(fault, ["faultstring"]) || "Darwin returned a fault";
-            this.trains.message = faultString;
+        if (!data) {
+            this.trains.message = "No data returned";
             this.loaded = true;
             this.updateDom(this.config.animationSpeed);
             return;
         }
 
-        var board = this.firstOf(result, ["Envelope", "Body", "GetDepBoardWithDetailsResponse", "GetStationBoardResult"]);
+        this.trains.stationName = data.locationName || "Departures";
 
-        if (!board) {
-            this.trains.message = "No info about the station returned";
-            if (this.config.debug) {
-                Log.error("MMM-UKNationalRail: unexpected response shape", result);
-            }
-            this.loaded = true;
-            this.updateDom(this.config.animationSpeed);
-            return;
-        }
+        var services = data.trainServices || [];
 
-        this.trains.stationName = this.firstOf(board, ["locationName"]) || "Departures";
+        if (services.length > 0) {
 
-        // firstOf collapses to a single item, so pull the full array out directly.
-        var serviceList = (board.trainServices && board.trainServices[0] && board.trainServices[0].service) || [];
-
-        if (serviceList.length > 0) {
-
-            var counter = this.config.maxResults > serviceList.length ? serviceList.length : this.config.maxResults;
+            var counter = this.config.maxResults > services.length ? services.length : this.config.maxResults;
 
             for (var i = 0; i < counter; i++) {
-                var thisTrain = serviceList[i];
+                var svc = services[i];
 
-                var std = this.firstOf(thisTrain, ["std"]);
-                var etd = this.firstOf(thisTrain, ["etd"]);
-                var platform = this.firstOf(thisTrain, ["platform"]);
-                var originName = this.firstOf(thisTrain, ["origin", "location", "locationName"]);
-                var destinationName = this.firstOf(thisTrain, ["destination", "location", "locationName"]);
+                var std = svc.std;
+                var etd = svc.etd;
+                var origin = (svc.origin && svc.origin[0] && svc.origin[0].locationName) || '';
+                var destination = (svc.destination && svc.destination[0] && svc.destination[0].locationName) || '';
 
-                // Darwin gives etd as "On time", "Delayed", "Cancelled", "No report",
-                // or a revised HH:MM time. Only show a separate "actual" time when
-                // it's a genuine revised time (i.e. not one of the status words).
-                var statusWords = ["ON TIME", "DELAYED", "CANCELLED", "NO REPORT"];
+                // Darwin gives etd as "On time", "Delayed", "No report", or a
+                // revised HH:MM time. isCancelled is an explicit flag rather
+                // than needing to string-match "Cancelled".
                 var actualDeparture = null;
-                var status = etd || "No report";
+                var status;
 
-                if (etd && statusWords.indexOf(etd.toUpperCase()) === -1) {
-                    // etd is a revised time like "14:32"
-                    actualDeparture = etd;
-                    status = (etd !== std) ? etd : "On time";
+                if (svc.isCancelled) {
+                    status = "Cancelled";
+                } else {
+                    var statusWords = ["ON TIME", "DELAYED", "NO REPORT"];
+                    if (etd && statusWords.indexOf(etd.toUpperCase()) === -1) {
+                        // etd is a revised time like "14:32"
+                        actualDeparture = etd;
+                        status = (etd !== std) ? etd : "On time";
+                    } else {
+                        status = etd || "No report";
+                    }
                 }
 
                 this.trains.data.push({
                     plannedDeparture: std,
                     actualDeparture: actualDeparture,
                     status: status,
-                    origin: originName,
-                    destination: destinationName,
-                    platform: platform
+                    origin: origin,
+                    destination: destination,
+                    platform: svc.platform
                 });
             }
         } else {
