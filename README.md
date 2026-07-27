@@ -36,6 +36,7 @@ modules: [
 There are 2 MANDATORY fields - `stationCode` and `accessToken`. All the others are used to limit the amount of info you get back, especially useful for busy stations like Clapham Junction.
 
 Add a config for each station you require info on.
+## updates can simply be made with git pull
 
 ## Getting a Darwin Consumer key
 
@@ -83,3 +84,5 @@ If there are issues getting data out of the module, check the following:
 5. Set `debug: true` in your config - the module will log the raw SOAP request/response to the console, which usually makes auth vs. data-shape problems obvious.
 6. A 401/403 from Darwin almost always means the Consumer key is missing, wrong, or the subscription hasn't been approved yet.
 7. Check your subsciption has been renewed
+8. is there blank spaces between the quotations 
+9. have you added "UKNationalRailDarwin" to your module list at the top of config.js aswell
