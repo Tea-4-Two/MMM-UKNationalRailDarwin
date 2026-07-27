@@ -6,6 +6,10 @@
  * By Nick Wootton
  * based on SwissTransport module by Benjamin Angst http://www.beny.ch
  * MIT Licensed.
+ *
+ * Updated to use National Rail's Darwin real-time feed via OpenLDBWS,
+ * since TransportAPI (the module's original data source) is no longer
+ * usable. See README.md for how to get a Darwin Consumer key.
  */
 
 Module.register("MMM-UKNationalRail", {
@@ -18,28 +22,21 @@ Module.register("MMM-UKNationalRail", {
         fadePoint: 0.25, // Start on 1/4th of the list.
         initialLoadDelay: 0, // start delay seconds.
 
-        apiBase: 'https://transportapi.com/v3/uk/train/station/',
+        // Darwin/OpenLDBWS SOAP endpoint. You shouldn't normally need to change this.
+        soapEndpoint: 'https://lite.realtime.nationalrail.co.uk/OpenLDBWS/ldb11.asmx',
 
-        stationCode: '', // CRS code for station
-        app_key: '', // TransportAPI App Key
-        app_id: '', // TransportAPI App ID
+        stationCode: '', // CRS code for the station you want departures from
+        accessToken: '', // Darwin "Consumer key" from the Rail Data Marketplace (raildata.org.uk)
 
-        called_at: '',
-        calling_at: '',
-        darwin: false,
-        destination: '',
-        from_offset: '',
-        operator: '',
-        origin: '',
-        service: '',
-        to_offset: '',
-        train_status: '',
-        type: '',
+        filterCrs: '', // Optional - CRS code of another station to filter services by
+        filterType: 'to', // 'to' or 'from' - only used if filterCrs is set
+        timeOffset: '', // Optional - minutes relative to now to start the window (e.g. '-30')
+        timeWindow: '', // Optional - size of the time window in minutes (Darwin default is 120)
 
-        maxResults: 5, //Maximum number of results to display
-        showOrigin: false, //Show origin of train
-        showPlatform: true, //Show departure platform of train
-        showActualDeparture: true, //Show real-time departure time
+        maxResults: 5, //Optional - Maximum results to display.
+        showOrigin: false, //Optional - Show the origin of the train in the table
+        showPlatform: true, //Optional - Show the departure platform of the train in the table
+        showActualDeparture: true, //Optional - Show the real-time departure time in the table
 
         debug: false
     },
@@ -68,12 +65,7 @@ Module.register("MMM-UKNationalRail", {
 
         this.trains = {};
         this.loaded = false;
-
-        this.url = encodeURI(this.config.apiBase + this.config.stationCode + '/live.json' + this.getParams());
-
-        if (this.config.debug) {
-            Log.warn('URL Request is: ' + this.url);
-        }
+        this.errorMessage = null;
 
         // Initial start up delay via a timeout
         this.updateTimer = setTimeout(() => {
@@ -90,7 +82,18 @@ Module.register("MMM-UKNationalRail", {
     // Trigger an update of our train data
     fetchTrainInfo: function() {
         if (!this.hidden) {
-            this.sendSocketNotification("GET_TRAININFO", { 'url': this.url } );
+            this.sendSocketNotification("GET_TRAININFO", {
+                identifier: this.identifier,
+                endpoint: this.config.soapEndpoint,
+                accessToken: this.config.accessToken,
+                stationCode: this.config.stationCode,
+                filterCrs: this.config.filterCrs,
+                filterType: this.config.filterType,
+                timeOffset: this.config.timeOffset,
+                timeWindow: this.config.timeWindow,
+                numRows: this.config.maxResults,
+                debug: this.config.debug
+            });
         }
     },
 
@@ -99,19 +102,19 @@ Module.register("MMM-UKNationalRail", {
         var wrapper = document.createElement("div");
 
         if (this.config.stationCode === "") {
-            wrapper.innerHTML = "Please set the Station Code: " + this.stationCode + ".";
+            wrapper.innerHTML = "Please set the Station Code (CRS) in the config.";
             wrapper.className = "dimmed light small";
             return wrapper;
         }
 
-        if (this.config.app_id === "") {
-            wrapper.innerHTML = "Please set the application ID: " + this.app_id + ".";
+        if (this.config.accessToken === "") {
+            wrapper.innerHTML = "Please set your Darwin accessToken (Consumer key from raildata.org.uk) in the config.";
             wrapper.className = "dimmed light small";
             return wrapper;
         }
 
-        if (this.config.app_key === "") {
-            wrapper.innerHTML = "Please set the application key: " + this.app_key + ".";
+        if (this.errorMessage) {
+            wrapper.innerHTML = this.errorMessage;
             wrapper.className = "dimmed light small";
             return wrapper;
         }
@@ -142,6 +145,7 @@ Module.register("MMM-UKNationalRail", {
 
                 //If platform is required, create first table cell
                 if (this.config.showPlatform) {
+                    var platform;
                     if (myTrain.platform) {
                         platform = myTrain.platform;
                     } else {
@@ -174,10 +178,10 @@ Module.register("MMM-UKNationalRail", {
                 plannedDepCell.className = "timeTabled";
                 row.appendChild(plannedDepCell);
 
-                //If required, live departure time
+                //If required, live departure time (only shown when Darwin gives a revised time)
                 if (this.config.showActualDeparture) {
                     var actualDepCell = document.createElement("td");
-                    if(myTrain.actualDeparture != null) { // Only display actual time if it exists
+                    if (myTrain.actualDeparture != null) {
                         actualDepCell.innerHTML = "(" + myTrain.actualDeparture + ")";
                     } else {
                         actualDepCell.innerHTML = "&nbsp;";
@@ -190,22 +194,23 @@ Module.register("MMM-UKNationalRail", {
                 var statusCell = document.createElement("td");
                 statusCell.innerHTML = " " + titleCase(myTrain.status) + " ";
 
-                if (myTrain.status == "ON TIME") {
+                var statusUpper = myTrain.status.toUpperCase();
+                if (statusUpper === "ON TIME") {
                     statusCell.className = "bright nonews status";
-                } else if (myTrain.status == "LATE") {
-                    statusCell.className = "bright late status";
-                } else if (myTrain.status == "EARLY") {
-                    statusCell.className = "bright early status";
-                } else if (myTrain.status == "CANCELLED") {
+                } else if (statusUpper === "CANCELLED") {
                     statusCell.className = "late status";
-                } else if (myTrain.status == "ARRIVED") {
-                    statusCell.className = "early status";
-                } else if (myTrain.status == "REINSTATEMENT" || myTrain.status == "STARTS HERE") {
-                    statusCell.className = "goodnews status";
-                } else if (myTrain.status == "NO REPORT" || myTrain.status == "OFF ROUTE") {
+                } else if (statusUpper === "DELAYED") {
+                    statusCell.className = "late status";
+                } else if (statusUpper === "LATE") {
+                    statusCell.className = "bright late status";
+                } else if (statusUpper === "EARLY") {
+                    statusCell.className = "bright early status";
+                } else if (statusUpper === "NO REPORT") {
                     statusCell.className = "nonews status";
                 } else {
-                    statusCell.className = "nonews status";
+                    // A revised HH:MM time from Darwin that we couldn't
+                    // confidently classify as late/early.
+                    statusCell.className = "bright late status";
                 }
 
                 row.appendChild(statusCell);
@@ -214,8 +219,8 @@ Module.register("MMM-UKNationalRail", {
                     if (this.config.fadePoint < 0) {
                         this.config.fadePoint = 0;
                     }
-                    var startingPoint = this.trains.length * this.config.fadePoint;
-                    var steps = this.trains.length - startingPoint;
+                    var startingPoint = this.trains.data.length * this.config.fadePoint;
+                    var steps = this.trains.data.length - startingPoint;
                     if (t >= startingPoint) {
                         var currentStep = t - startingPoint;
                         row.style.opacity = 1 - (1 / steps * currentStep);
@@ -246,212 +251,121 @@ Module.register("MMM-UKNationalRail", {
         return wrapper;
     },
 
-    /* processTrains(data)
-     * Uses the received data to set the various values.
-     *
-     * argument data object - Weather information received form openweather.org.
+    /* firstOf(node, path)
+     * Small helper for safely digging into the deeply-nested, array-heavy
+     * structure that xml2js produces from Darwin's SOAP response.
+     * `path` is an array of keys to walk, taking element [0] at each step.
      */
-    processTrains: function(data) {
-
-        //Check we have data back from API
-        if (typeof data !== 'undefined' && data !== null) {
-
-            //define object to hold train info
-            this.trains = {};
-            //Define array of departure data
-            this.trains.data = [];
-            //Define timestamp of current data
-            this.trains.timestamp = new Date();
-            //Define message holder
-            this.trains.message = null;
-
-            //Figure out Station Name
-            //Define empty name
-            var stationName = "";
-
-            if (typeof data.station_name !== 'undefined' && data.station_name !== null) {
-                //Populate with stop name returned by TransportAPI info
-                stationName = data.station_name;
-            } else {
-                //Default
-                stationName = "Departures";
+    firstOf: function(node, path) {
+        var current = node;
+        for (var i = 0; i < path.length; i++) {
+            if (current == null) {
+                return null;
             }
-            //Set value
-            this.trains.stationName = stationName;
-
-            //See if the data is Arrivals or Updates instead of departures
-            if (typeof data.arrivals !== 'undefined' && data.arrivals !== null) {
-
-                if (this.config.debug) {
-                    Log.error("Arrival detected");
-                }
-                //Change label to departures
-                var deps = data.arrivals;
-                data.departures = deps;
-                delete data.arrivals;
+            current = current[path[i]];
+            if (Array.isArray(current)) {
+                current = current[0];
             }
-            else if (typeof data.updates !== 'undefined' && data.updates !== null) {
+        }
+        return current == null ? null : current;
+    },
 
-                if (this.config.debug) {
-                    Log.error("Update detected");
-                }
-                //Change label to departures
-                var deps = data.updates;
-                data.departures = deps;
-                delete data.updates;
-            }
-            else if (typeof data.passes !== 'undefined' && data.passes !== null) {
+    /* processTrains(result)
+     * Uses the parsed Darwin SOAP response (via xml2js, prefixes stripped)
+     * to populate this.trains for getDom() to render.
+     *
+     * argument result object - Parsed GetDepBoardWithDetailsResponse from Darwin.
+     */
+    processTrains: function(result) {
 
-                if (this.config.debug) {
-                    Log.error("Pass detected");
-                }
-                //Change label to departures
-                var deps = data.passes;
+        this.trains = {};
+        this.trains.data = [];
+        this.trains.timestamp = new Date();
+        this.trains.message = null;
 
-                data.departures = deps;
-                delete data.passes;
-            }
+        var fault = this.firstOf(result, ["Envelope", "Body", "Fault"]);
+        if (fault) {
+            var faultString = this.firstOf(fault, ["faultstring"]) || "Darwin returned a fault";
+            this.trains.message = faultString;
+            this.loaded = true;
+            this.updateDom(this.config.animationSpeed);
+            return;
+        }
 
-            //Check we have route info
-            if (typeof data.departures !== 'undefined' && data.departures !== null) {
+        var board = this.firstOf(result, ["Envelope", "Body", "GetDepBoardWithDetailsResponse", "GetStationBoardResult"]);
 
-                //... and some departures
-				if (typeof data.departures.all !== 'undefined' && data.departures.all !== null) {
-
-                    //.. and actual departures
-                    if (data.departures.all.length > 0) {
-
-                        //Figure out how long the results are
-                        var counter = 0;
-                        if (this.config.maxResults > data.departures.all.length) {
-                            counter = data.departures.all.length;
-                        } else {
-                            counter = this.config.maxResults;
-                        }
-
-                        for (var i = 0; i < counter; i++) {
-
-                            var thisTrain = data.departures.all[i];
-
-                            this.trains.data.push({
-                                plannedDeparture: thisTrain.aimed_departure_time,
-                                actualDeparture: thisTrain.expected_departure_time,
-                                status: thisTrain.status,
-                                origin: thisTrain.origin_name,
-                                destination: thisTrain.destination_name,
-                                leavesIn: thisTrain.best_arrival_estimate_mins,
-                                platform: thisTrain.platform
-                            });
-                        }
-                    } else {
-                        //No departures info returned - set message
-                        this.trains.message = "No departure info found";
-                        if (this.config.debug) {
-                            Log.error("=======LEVEL 4=========");
-                            Log.error(this.trains);
-                            Log.error("^^^^^^^^^^^^^^^^^^^^^^^");
-                        }
-                    }
-                } else {
-                    //No departures info returned - set message
-                    this.trains.message = "No departures scheduled";
-                    if (this.config.debug) {
-                        Log.error("=======LEVEL 3=========");
-                        Log.error(this.trains);
-                        Log.error("^^^^^^^^^^^^^^^^^^^^^^^");
-                    }
-                }
-            } else {
-                //No info returned - set message
-                this.trains.message = "No info about the station returned";
-                if (this.config.debug) {
-                    Log.error("=======LEVEL 2=========");
-                    Log.error(this.trains);
-                    Log.error("^^^^^^^^^^^^^^^^^^^^^^^");
-                }
-            }
-
-        } else {
-            //No data returned - set message
-            this.trains.message = "No data returned";
+        if (!board) {
+            this.trains.message = "No info about the station returned";
             if (this.config.debug) {
-                Log.error("=======LEVEL 1=========");
-                Log.error(this.trains);
-                Log.error("^^^^^^^^^^^^^^^^^^^^^^^");
+                Log.error("MMM-UKNationalRail: unexpected response shape", result);
             }
+            this.loaded = true;
+            this.updateDom(this.config.animationSpeed);
+            return;
+        }
+
+        this.trains.stationName = this.firstOf(board, ["locationName"]) || "Departures";
+
+        // firstOf collapses to a single item, so pull the full array out directly.
+        var serviceList = (board.trainServices && board.trainServices[0] && board.trainServices[0].service) || [];
+
+        if (serviceList.length > 0) {
+
+            var counter = this.config.maxResults > serviceList.length ? serviceList.length : this.config.maxResults;
+
+            for (var i = 0; i < counter; i++) {
+                var thisTrain = serviceList[i];
+
+                var std = this.firstOf(thisTrain, ["std"]);
+                var etd = this.firstOf(thisTrain, ["etd"]);
+                var platform = this.firstOf(thisTrain, ["platform"]);
+                var originName = this.firstOf(thisTrain, ["origin", "location", "locationName"]);
+                var destinationName = this.firstOf(thisTrain, ["destination", "location", "locationName"]);
+
+                // Darwin gives etd as "On time", "Delayed", "Cancelled", "No report",
+                // or a revised HH:MM time. Only show a separate "actual" time when
+                // it's a genuine revised time (i.e. not one of the status words).
+                var statusWords = ["ON TIME", "DELAYED", "CANCELLED", "NO REPORT"];
+                var actualDeparture = null;
+                var status = etd || "No report";
+
+                if (etd && statusWords.indexOf(etd.toUpperCase()) === -1) {
+                    // etd is a revised time like "14:32"
+                    actualDeparture = etd;
+                    status = (etd !== std) ? etd : "On time";
+                }
+
+                this.trains.data.push({
+                    plannedDeparture: std,
+                    actualDeparture: actualDeparture,
+                    status: status,
+                    origin: originName,
+                    destination: destinationName,
+                    platform: platform
+                });
+            }
+        } else {
+            this.trains.message = "No departures found";
         }
 
         this.loaded = true;
         this.updateDom(this.config.animationSpeed);
     },
 
-
-    /* getParams(compliments)
-     * Generates an url with api parameters based on the config.
-     *
-     * return String - URL params.
-     */
-    getParams: function() {
-        var params = "?";
-        params += "app_id=" + this.config.app_id;
-        params += "&app_key=" + this.config.app_key;
-
-        if (this.config.called_at.length > 0) {
-            params += "&called_at=" + this.config.called_at;
-        }
-
-        if (this.config.calling_at.length > 0) {
-            params += "&calling_at=" + this.config.calling_at;
-        }
-
-        if (this.config.darwin) {
-            params += "&darwin=" + this.config.darwin;
-        }
-
-        if (this.config.destination.length > 0) {
-            params += "&destination=" + this.config.destination;
-        }
-
-        if (this.config.from_offset.length > 0) {
-            params += "&from_offset=" + this.config.from_offset;
-        }
-
-        if (this.config.operator.length > 0) {
-            params += "&operator=" + this.config.operator;
-        }
-
-        if (this.config.origin.length > 0) {
-            params += "&origin=" + this.config.origin;
-        }
-
-        if (this.config.service.length > 0) {
-            params += "&service=" + this.config.service;
-        }
-
-        if (this.config.to_offset.length > 0) {
-            params += "&to_offset=" + this.config.to_offset;
-        }
-
-        if (this.config.train_status.length > 0) {
-            params += "&train_status=" + this.config.train_status;
-        }
-
-        if (this.config.type.length > 0) {
-            params += "&type=" + this.config.type;
-        }
-
-        if (this.config.debug) {
-            Log.warn(params);
-        }
-
-        return params;
-    },
-
     // Process data returned
     socketNotificationReceived: function(notification, payload) {
 
-        if (notification === 'TRAIN_DATA' && payload.url === this.url) {
+        if (payload.identifier !== this.identifier) {
+            return;
+        }
+
+        if (notification === 'TRAIN_DATA') {
+            this.errorMessage = null;
             this.processTrains(payload.data);
+        } else if (notification === 'TRAIN_ERROR') {
+            this.errorMessage = payload.error;
+            this.loaded = true;
+            this.updateDom(this.config.animationSpeed);
         }
     }
 

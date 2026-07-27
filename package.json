@@ -1,7 +1,7 @@
 {
   "name": "mmm-uknationalrail",
-  "version": "0.0.2",
-  "description": "Realtime info for UK rail stations",
+  "version": "0.1.0",
+  "description": "Realtime info for UK rail stations, via National Rail's Darwin OpenLDBWS feed",
   "main": "MMM-UKNationalRail.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -22,6 +22,6 @@
   },
   "homepage": "https://github.com/nwootton/MMM-UKNationalRail#readme",
   "dependencies": {
-    "request": "^2.81.0"
+    "xml2js": "^0.6.2"
   }
 }
